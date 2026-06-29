@@ -1,0 +1,119 @@
+<!-- Awful Vibecoded EMF Map for use with the GPS MCaster App -->
+<!-- Mallyhubz -->
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EMF Map Receiver Viewer</title>
+
+<style>
+  body { margin: 0; font-family: sans-serif; display: flex; height: 100vh; }
+  #list { width: 200px; border-right: 1px solid #ccc; padding: 10px; overflow-y: auto; }
+  #viewer { flex: 1; }
+  iframe { width: 100%; height: 100%; border: none; }
+  .item { margin-bottom: 10px; }
+  .label { font-weight: normal; }
+  .coords { font-size: 12px; color: #555; display: block; }
+  .follow { margin-left: 8px; color: #0066cc; cursor: pointer; }
+  .follow:hover { text-decoration: underline; }
+  .active { font-weight: bold; }
+  #title { font-size: 16px; font-weight: bold; margin-bottom: 12px; }
+</style>
+</head>
+
+<body>
+<div id="list">
+    <div id="title">Position Updates</div>
+</div>
+
+<div id="viewer"><iframe id="frame"></iframe></div>
+
+<script>
+const ws = new WebSocket("ws://" + location.host);
+const listDiv = document.getElementById("list");
+const frame = document.getElementById("frame");
+
+// Store DOM elements per label
+const items = {};
+
+// Remember which label is currently followed
+let activeLabel = null;
+
+// Fixed EMF map centre
+const CENTRE_LAT = 52.041051;
+const CENTRE_LON = -2.376497;
+
+// Default map view (no marker)
+frame.src = "https://map.emfcamp.org/#17/" + CENTRE_LAT + "/" + CENTRE_LON;
+
+// Build EMF Camp map URL (centre fixed)
+function buildURL(label, lat, lon) {
+    return "https://map.emfcamp.org/#17/" +
+           CENTRE_LAT + "/" + CENTRE_LON +
+           "/m=" + lat + "," + lon;
+}
+
+ws.onmessage = (event) => {
+    const { label, lat, lon } = JSON.parse(event.data);
+
+    // Update existing row
+    if (items[label]) {
+        items[label].coords.textContent = `lat: ${lat}, lon: ${lon}`;
+
+        items[label].follow.onclick = () => {
+            setActiveLabel(label, lat, lon);
+        };
+
+        // Auto-refresh iframe if this label is active
+        if (activeLabel === label) {
+            frame.src = buildURL(label, lat, lon);
+        }
+
+        return;
+    }
+
+    // Create new row
+    const wrapper = document.createElement("div");
+    wrapper.className = "item";
+
+    const name = document.createElement("span");
+    name.className = "label";
+    name.textContent = label;
+
+    const follow = document.createElement("span");
+    follow.className = "follow";
+    follow.textContent = "[follow]";
+    follow.onclick = () => {
+        setActiveLabel(label, lat, lon);
+    };
+
+    const coords = document.createElement("span");
+    coords.className = "coords";
+    coords.textContent = `lat: ${lat}, lon: ${lon}`;
+
+    wrapper.appendChild(name);
+    wrapper.appendChild(follow);
+    wrapper.appendChild(coords);
+    listDiv.appendChild(wrapper);
+
+    items[label] = { wrapper, name, follow, coords };
+};
+
+// Set active label + update bold state + refresh iframe
+function setActiveLabel(label, lat, lon) {
+    // Remove bold from previous active label
+    if (activeLabel && items[activeLabel]) {
+        items[activeLabel].name.classList.remove("active");
+    }
+
+    // Set new active label
+    activeLabel = label;
+    items[label].name.classList.add("active");
+
+    // Load map for this label
+    frame.src = buildURL(label, lat, lon);
+}
+</script>
+</body>
+</html>
